@@ -1,3 +1,5 @@
+<img src="site/public/shoebox.svg" alt="" width="88">
+
 # Shoebox
 
 A private photo gallery you host yourself on Cloudflare, for the photos from a wedding,
