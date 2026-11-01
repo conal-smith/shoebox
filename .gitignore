@@ -1,0 +1,14 @@
+# A gallery's photos and everything made from them (faces, crops, fingerprints) live in
+# data/ (or $SHOEBOX_DATA), never in the repo.
+/data
+*.jpg
+*.jpeg
+*.npy
+*.zip
+.DS_Store
+.venv/
+__pycache__/
+node_modules/
+.wrangler/
+.dev.vars
+site/wrangler.jsonc

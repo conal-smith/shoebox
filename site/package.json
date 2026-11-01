@@ -1,0 +1,15 @@
+{
+  "name": "shoebox",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "secrets": "node make-secrets.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "vendor": "mkdir -p public/vendor && cp node_modules/photoswipe/dist/photoswipe.esm.min.js node_modules/photoswipe/dist/photoswipe-lightbox.esm.min.js node_modules/photoswipe/dist/photoswipe.css public/vendor/"
+  },
+  "devDependencies": {
+    "photoswipe": "^5.4.4",
+    "wrangler": "^4.156.0"
+  }
+}

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face review</title>
+<style>
+  :root { --fg: #222; --muted: #777; --line: #e6e3de; --bg: #faf9f6; --accent: #6b3a1e; --warn: #b4541a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: var(--fg); background: #fff; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; font-weight: 500; margin: 0; }
+  header .stats { color: var(--muted); flex: 1; }
+  button { font: inherit; border: 1px solid var(--fg); background: #fff; border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+  button.primary { background: var(--fg); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(340px, 44%) 1fr; min-height: calc(100vh - 57px); }
+  #people { padding: 20px 28px; border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 57px); }
+  #people h2, #detail h2 { font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
+  .person { text-align: center; cursor: pointer; }
+  .person img { width: 92px; height: 92px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 6px; outline: 3px solid transparent; outline-offset: 2px; }
+  .person.selected img { outline-color: var(--accent); }
+  .person.hidden img { opacity: .35; }
+  .person input { width: 100%; text-align: center; border: 0; border-bottom: 1px dashed var(--line); font: inherit; padding: 2px; background: transparent; }
+  .person input:focus { outline: none; border-bottom-color: var(--accent); }
+  .person .meta { color: var(--muted); font-size: 12px; }
+  .person .meta .clash { color: var(--warn); }
+  #detail { padding: 20px 28px; overflow: auto; max-height: calc(100vh - 57px); }
+  #detail .empty { color: var(--muted); margin-top: 40px; }
+  .faces { display: flex; flex-wrap: wrap; gap: 6px; }
+  .face { position: relative; }
+  .face img { width: 72px; height: 72px; border-radius: 6px; display: block; }
+  .face button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; padding: 0; border-radius: 50%; font-size: 13px; line-height: 1; display: none; }
+  .face:hover button { display: block; }
+  .face.removed img { opacity: .2; }
+  .photos { columns: 4 180px; column-gap: 6px; }
+  .photos img { width: 100%; display: block; margin-bottom: 6px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  .hint { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Face review</h1>
+  <span class="stats" id="stats"></span>
+  <span class="hint" id="status"></span>
+  <button class="primary" id="save" disabled>Save &amp; regroup</button>
+</header>
+<main>
+  <section id="people"></section>
+  <section id="detail"><p class="empty">Pick a person to check their faces and photos.<br><br>
+    Give two groups the same name to merge them. Hover a face and press × if it is someone else.</p></section>
+</main>
+<datalist id="names"></datalist>
+<script>
+const $ = (sel) => document.querySelector(sel);
+let data, faces, labels, selected = null, dirty = false;
+
+const crop = (i) => `/data/faces/crops/${i}.jpg`;
+const thumb = (id) => `/data/thumb/${id}.jpg`;
+
+async function load() {
+  [data, faces, labels] = await Promise.all([
+    fetch('/data/faces/people.json').then((r) => r.json()),
+    fetch('/data/faces/faces.json').then((r) => r.json()).then((j) => j.faces),
+    fetch('/data/faces/labels.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+  ]);
+  labels = { names: labels.names || {}, removed: new Set(labels.removed || []), hidden: new Set(labels.hidden || []) };
+  if (selected) selected = data.people.find((p) => p.faces.includes(selected.cover)) || null;
+  render();
+}
+
+function markDirty() { dirty = true; $('#save').disabled = false; $('#status').textContent = 'Unsaved changes'; }
+
+function render() {
+  const named = data.people.filter((p) => p.name);
+  $('#stats').textContent = `${data.people.length} people · ${named.length} named · ${data.faceCount} faces · ${data.unsorted.length} unsorted`;
+  $('#names').innerHTML = [...new Set(named.map((p) => p.name))].map((n) => `<option value="${n}">`).join('');
+  const section = (title, list) => list.length ? `<h2>${title}</h2><div class="grid">${list.map(card).join('')}</div>` : '';
+  $('#people').innerHTML =
+    section('Named', named) +
+    section('Not named yet — biggest first', data.people.filter((p) => !p.name)) +
+    `<h2>Unsorted faces (${data.unsorted.length})</h2><p class="hint">Faces too small, blurry or rare to group. Click one to name it.</p>
+     <div class="faces">${data.unsorted.slice(0, 400).map((i) => `<div class="face" data-unsorted="${i}"><img loading="lazy" src="${crop(i)}"></div>`).join('')}</div>`;
+  for (const el of document.querySelectorAll('#people .person')) {
+    const person = data.people.find((p) => p.id === el.dataset.id);
+    el.addEventListener('click', (e) => { if (e.target.tagName !== 'INPUT') { selected = person; render(); } });
+    el.querySelector('input').addEventListener('change', (e) => rename(person, e.target.value));
+  }
+  for (const el of document.querySelectorAll('[data-unsorted]')) {
+    el.addEventListener('click', () => {
+      const name = prompt('Who is this?');
+      if (name && name.trim()) { labels.names[el.dataset.unsorted] = name.trim(); el.style.opacity = .3; markDirty(); }
+    });
+  }
+  renderDetail();
+}
+
+function card(p) {
+  const cls = ['person', p === selected && 'selected', p.hidden && 'hidden'].filter(Boolean).join(' ');
+  const clash = p.samePhotoClashes ? ` · <span class="clash" title="Faces in the same photo — likely a mix-up">${p.samePhotoClashes} clash</span>` : '';
+  return `<div class="${cls}" data-id="${p.id}"><img loading="lazy" src="${crop(p.cover)}">
+    <input list="names" placeholder="Who is this?" value="${p.name || ''}">
+    <div class="meta">${p.photos.length} photos${clash}</div></div>`;
+}
+
+function rename(person, name) {
+  name = name.trim();
+  person.name = name || null;
+  for (const i of person.faces) {
+    if (name) labels.names[i] = name; else delete labels.names[i];
+  }
+  markDirty();
+}
+
+function renderDetail() {
+  const p = selected;
+  if (!p) return;
+  const hideLabel = p.hidden ? 'Show on site' : 'Hide from site';
+  $('#detail').innerHTML = `
+    <h2>${p.name || 'Unnamed'} — ${p.faces.length} faces in ${p.photos.length} photos</h2>
+    <div class="row">${p.name ? `<button id="hide">${hideLabel}</button>` : '<span class="hint">Name this person to be able to hide them.</span>'}</div>
+    ${p.similar.length ? `<h2>Might be the same person — click to merge</h2><div class="grid">${p.similar.map((id) => {
+      const o = data.people.find((q) => q.id === id);
+      return `<div class="person" data-merge="${id}"><img loading="lazy" src="${crop(o.cover)}"><div class="meta">${o.name || 'Unnamed'} · ${o.photos.length} photos</div></div>`;
+    }).join('')}</div>` : ''}
+    <h2>Faces</h2>
+    <div class="faces">${p.faces.map((i) => `<div class="face ${labels.removed.has(i) ? 'removed' : ''}" title="${faces[i].photo}">
+      <img loading="lazy" src="${crop(i)}"><button data-remove="${i}" title="Not this person">×</button></div>`).join('')}</div>
+    <h2>Photos</h2>
+    <div class="photos">${p.photos.map((id) => `<img loading="lazy" src="${thumb(id)}" title="${id}">`).join('')}</div>`;
+  $('#hide')?.addEventListener('click', () => {
+    labels.hidden.has(p.name) ? labels.hidden.delete(p.name) : labels.hidden.add(p.name);
+    p.hidden = !p.hidden; markDirty(); render();
+  });
+  for (const el of document.querySelectorAll('[data-merge]')) {
+    el.addEventListener('click', () => {
+      const other = data.people.find((q) => q.id === el.dataset.merge);
+      // names are only labels here (the site doesn't show them), so unnamed merges get one made up
+      const name = p.name || other.name || `person ${p.cover}`;
+      rename(p, name); rename(other, name);
+      el.style.opacity = .3;
+    });
+  }
+  for (const b of document.querySelectorAll('[data-remove]')) {
+    b.addEventListener('click', () => {
+      const i = Number(b.dataset.remove);
+      labels.removed.has(i) ? labels.removed.delete(i) : labels.removed.add(i);
+      delete labels.names[i];
+      b.parentElement.classList.toggle('removed'); markDirty();
+    });
+  }
+}
+
+$('#save').addEventListener('click', async () => {
+  $('#save').disabled = true; $('#status').textContent = 'Regrouping…';
+  const res = await fetch('/api/labels', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names: labels.names, removed: [...labels.removed], hidden: [...labels.hidden] }) });
+  const { log } = await res.json();
+  $('#status').textContent = res.ok ? log.trim() : 'Regroup failed: ' + log;
+  dirty = false;
+  await load();
+});
+
+window.addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
+load();
+</script>
+</body>
+</html>

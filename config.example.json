@@ -1,0 +1,13 @@
+{
+  "title": "Sam & Alex",
+  "monogram": "S & A",
+  "place": "The Old Mill",
+  "date": "2026-06-14",
+  "highlights": "Favourites",
+  "prefix": "gallery",
+  "chapters": [
+    { "title": "Getting Ready", "from": "0001.jpg" },
+    { "title": "The Ceremony", "from": "2026-06-14 14:00" },
+    { "title": "The Party", "from": "2026-06-14 19:30" }
+  ]
+}

@@ -1,0 +1,29 @@
+// Copy to wrangler.jsonc (which git ignores) and change "name" and "bucket_name" if you like.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shoebox",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public/",
+    "binding": "ASSETS",
+    // every request goes through the passcode check, including the app's own files
+    "run_worker_first": true,
+    "html_handling": "drop-trailing-slash"
+  },
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "shoebox-photos" }],
+  "ratelimits": [
+    // passcode guesses: per visitor, and for everyone together (counted per Cloudflare location)
+    { "name": "GUESSES_PER_IP", "namespace_id": "4101", "simple": { "limit": 5, "period": 60 } },
+    { "name": "GUESSES_TOTAL", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
+  ],
+  // folder in the bucket for this gallery; matches "prefix" in the gallery's config.json
+  "vars": { "GALLERY": "gallery" },
+  // secrets, made by `npm run secrets` into .dev.vars and sent with `npx wrangler secret bulk .dev.vars`:
+  //   PASSCODE        the 6-digit code guests type
+  //   SESSION_SECRET  signs the "you're in" cookie; changing it or PASSCODE signs everyone out
+  //   ADMIN_TOKEN     lets pipeline/publish.py upload photos; leave unset to turn uploads off
+  "observability": { "enabled": true }
+}
