@@ -16,7 +16,7 @@ const COOKIE = 'gallery_session';
 const SESSION_DAYS = 365;
 const SIZES = new Set(['thumb', 'web', 'avatar']);
 const ID = /^[a-z0-9-]{1,40}$/;
-const OPEN_PATHS = new Set(['/login.css', '/login.js', '/favicon.svg']); // what the passcode page needs
+const OPEN_PATHS = new Set(['/login.css', '/login.js', '/favicon.svg', '/shoebox.svg']); // what the passcode page needs
 const enc = new TextEncoder();
 
 export default {
